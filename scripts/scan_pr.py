@@ -13,7 +13,7 @@ from pathlib import Path
 try:
     import yaml
 except ImportError:
-    print("❌ PyYAML not installed. Run: pip install pyyaml")
+    print(" PyYAML not installed. Run: pip install pyyaml")
     sys.exit(1)
 
 
@@ -172,7 +172,7 @@ def scan_pr(pr_number, repo, policy_file, output_file='scan_results.json'):
     print("\n" + "="*60)
     print("🛡️  AI-PR Guardian - Security Scanner")
     print("="*60)
-    print(f"📋 PR: #{pr_number}")
+    print(f" PR: #{pr_number}")
     print(f"📁 Repository: {repo}")
     print("="*60 + "\n")
     
@@ -181,7 +181,7 @@ def scan_pr(pr_number, repo, policy_file, output_file='scan_results.json'):
     
     token = os.environ.get('GITHUB_TOKEN', '')
     
-    print("🔍 Fetching changed files...")
+    print(" Fetching changed files...")
     if token:
         changed_files = get_changed_files_from_pr(pr_number, repo, token)
     else:
@@ -190,7 +190,7 @@ def scan_pr(pr_number, repo, policy_file, output_file='scan_results.json'):
         for ext in ['*.py', '*.js', '*.ts']:
             changed_files.extend([str(p) for p in Path('.').rglob(ext)])
     
-    print(f"📁 Found {len(changed_files)} files to scan\n")
+    print(f" Found {len(changed_files)} files to scan\n")
     
     scanner = CodeScanner()
     all_violations = []
@@ -205,7 +205,7 @@ def scan_pr(pr_number, repo, policy_file, output_file='scan_results.json'):
         
         violations = scanner.scan_file(filename, policies)
         if violations:
-            print(f"      ⚠️  Found {len(violations)} violation(s)")
+            print(f"      ️  Found {len(violations)} violation(s)")
             all_violations.extend(violations)
     
     results = {
@@ -222,7 +222,7 @@ def scan_pr(pr_number, repo, policy_file, output_file='scan_results.json'):
         json.dump(results, f, indent=2)
     
     print("\n" + "="*60)
-    print("📊 SCAN SUMMARY")
+    print(" SCAN SUMMARY")
     print("="*60)
     print(f"✅ Files scanned: {files_scanned}")
     print(f"{'❌' if all_violations else '✅'} Violations found: {len(all_violations)}")
@@ -241,5 +241,17 @@ def main():
     
     args = parser.parse_args()
     
+    # FIXED: Ensured all parentheses are properly closed
     results = scan_pr(
-        pr_number=args.pr_number
+        pr_number=args.pr_number,
+        repository=args.repository,
+        policy_file=args.policies,
+        output_file=args.output
+    )
+    
+    if results['violations_found'] > 0:
+        sys.exit(1)
+
+
+if __name__ == '__main__':
+    main()
