@@ -1,9 +1,4 @@
-"""
-MIT License - Copyright 2024
-Secure application example
-"""
+"""MIT License - Copyright 2024"""
 import os
-
-def get_api_key():
-    # Safe: Uses environment variables
+def get_key():
     return os.environ.get('API_KEY')
