@@ -1,0 +1,127 @@
+name: 🛡️ AI-PR Guardian
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main, master, develop]
+
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+
+jobs:
+  security-scan:
+    name: Security & Compliance Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: 📦 Install dependencies
+        run: |
+          pip install pyyaml
+          pip install semgrep
+      
+      - name: 🔍 Run AI-PR Guardian Scanner
+        id: scan
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+        run: |
+          echo "Starting security scan..."
+          python scripts/scan_pr.py \
+            --pr-number ${{ github.event.pull_request.number }} \
+            --repository ${{ github.repository }} \
+            --policies .ai-guardrails/policies.yaml \
+            --output scan_results.json
+            
+      - name: 📊 Upload scan results
+        uses: actions/upload-artifact@v4
+        with:
+          name: audit-log-pr-${{ github.event.pull_request.number }}
+          path: scan_results.json
+          retention-days: 90
+      
+      - name: 💬 Post comment on PR
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            let results;
+            try {
+              const data = fs.readFileSync('scan_results.json', 'utf8');
+              results = JSON.parse(data);
+            } catch (e) {
+              return;
+            }
+            
+            const prNumber = context.issue.number;
+            const timestamp = new Date().toISOString();
+            
+            if (results.violations_found === 0) {
+              await github.rest.issues.createComment({
+                issue_number: prNumber,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: `## ✅ AI-PR Guardian: All Checks Passed\n\n- **Status**: APPROVED ✓\n- **Files scanned**: ${results.files_scanned}\n- **Violations**: 0\n\n*Powered by AI-PR Guardian 🔒*`
+              });
+              await github.rest.checks.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                name: 'AI-PR Guardian Security Check',
+                head_sha: context.payload.pull_request.head.sha,
+                status: 'completed',
+                conclusion: 'success',
+                output: { title: '✅ Security Check Passed', summary: 'No violations detected' }
+              });
+            } else {
+              let comment = `## 🚫 AI-PR Guardian: Security Violations Detected\n\n**Status**: BLOCKED ❌\n- **Files scanned**: ${results.files_scanned}\n- **Violations**: ${results.violations_found}\n\n---\n\n`;
+              
+              const byFile = {};
+              results.violations.forEach(v => {
+                if (!byFile[v.file]) byFile[v.file] = [];
+                byFile[v.file].push(v);
+              });
+              
+              for (const [file, violations] of Object.entries(byFile)) {
+                comment += `#### 📄 \`${file}\`\n\n`;
+                violations.forEach((v, i) => {
+                  comment += `${i + 1}. **${v.policy}** (${v.severity})\n   - ${v.message}\n   - Line: ${v.line || 'N/A'}\n\n`;
+                });
+              }
+              
+              comment += `\n---\n**Action Required**: Fix these violations before merging.\n*Audit ID: ${Date.now()}*`;
+              
+              await github.rest.issues.createComment({
+                issue_number: prNumber,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: comment
+              });
+              
+              await github.rest.checks.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                name: 'AI-PR Guardian Security Check',
+                head_sha: context.payload.pull_request.head.sha,
+                status: 'completed',
+                conclusion: 'failure',
+                output: { title: '❌ Security Violations Found', summary: `${results.violations_found} violation(s) detected` }
+              });
+            }
+      
+      - name: ❌ Fail workflow if violations found
+        if: steps.scan.outcome == 'failure'
+        run: exit 1
