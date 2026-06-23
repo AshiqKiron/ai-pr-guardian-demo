@@ -13,7 +13,7 @@ from pathlib import Path
 try:
     import yaml
 except ImportError:
-    print(" PyYAML not installed. Run: pip install pyyaml")
+    print("❌ PyYAML not installed. Run: pip install pyyaml")
     sys.exit(1)
 
 
@@ -166,6 +166,7 @@ def get_changed_files_from_pr(pr_number, repo, token):
         return []
 
 
+# ✅ FIXED: Added 'repo' parameter to match the workflow call
 def scan_pr(pr_number, repo, policy_file, output_file='scan_results.json'):
     """Main scanning function"""
     
@@ -190,7 +191,7 @@ def scan_pr(pr_number, repo, policy_file, output_file='scan_results.json'):
         for ext in ['*.py', '*.js', '*.ts']:
             changed_files.extend([str(p) for p in Path('.').rglob(ext)])
     
-    print(f" Found {len(changed_files)} files to scan\n")
+    print(f"📁 Found {len(changed_files)} files to scan\n")
     
     scanner = CodeScanner()
     all_violations = []
@@ -205,53 +206,4 @@ def scan_pr(pr_number, repo, policy_file, output_file='scan_results.json'):
         
         violations = scanner.scan_file(filename, policies)
         if violations:
-            print(f"      ️  Found {len(violations)} violation(s)")
-            all_violations.extend(violations)
-    
-    results = {
-        'pr_number': pr_number,
-        'repository': repo,
-        'files_scanned': files_scanned,
-        'violations_found': len(all_violations),
-        'violations': all_violations,
-        'status': 'blocked' if all_violations else 'approved',
-        'policies_checked': len(policies)
-    }
-    
-    with open(output_file, 'w') as f:
-        json.dump(results, f, indent=2)
-    
-    print("\n" + "="*60)
-    print(" SCAN SUMMARY")
-    print("="*60)
-    print(f"✅ Files scanned: {files_scanned}")
-    print(f"{'❌' if all_violations else '✅'} Violations found: {len(all_violations)}")
-    print(f"📈 Status: {results['status'].upper()}")
-    print("="*60 + "\n")
-    
-    return results
-
-
-def main():
-    parser = argparse.ArgumentParser(description='AI-PR Guardian Scanner')
-    parser.add_argument('--pr-number', type=int, required=True)
-    parser.add_argument('--repository', type=str, required=True)
-    parser.add_argument('--policies', type=str, default='.ai-guardrails/policies.yaml')
-    parser.add_argument('--output', type=str, default='scan_results.json')
-    
-    args = parser.parse_args()
-    
-    # FIXED: Ensured all parentheses are properly closed
-    results = scan_pr(
-        pr_number=args.pr_number,
-        repository=args.repository,
-        policy_file=args.policies,
-        output_file=args.output
-    )
-    
-    if results['violations_found'] > 0:
-        sys.exit(1)
-
-
-if __name__ == '__main__':
-    main()
+            print(f"     
