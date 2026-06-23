@@ -1,0 +1,68 @@
+version: "1.0"
+description: "AI-PR Guardian Security & Compliance Policies"
+
+policies:
+  # ============================================================================
+  # CRITICAL: Secret Detection
+  # ============================================================================
+  - id: "no_secrets"
+    name: "🔑 No Hardcoded Secrets"
+    severity: "critical"
+    enabled: true
+    description: "Prevents API keys, tokens, and passwords in code"
+    rules:
+      - type: "regex"
+        id: "generic_secret"
+        pattern: "(?i)(api[_-]?key|secret[_-]?key|password|passwd|token|auth_token)\s*=\s*['\"][^'\"]{8,}['\"]"
+        message: "Potential hardcoded secret detected. Use environment variables instead."
+      
+      - type: "regex"
+        id: "aws_access_key"
+        pattern: "AKIA[0-9A-Z]{16}"
+        message: "AWS Access Key ID found! Never commit AWS credentials!"
+      
+      - type: "regex"
+        id: "github_token"
+        pattern: "ghp_[A-Za-z0-9_]{36}"
+        message: "GitHub Personal Access Token found!"
+
+  # ============================================================================
+  # HIGH: Dangerous Functions
+  # ============================================================================
+  - id: "no_dangerous_functions"
+    name: "⚠️ No Dangerous Functions"
+    severity: "high"
+    enabled: true
+    description: "Blocks eval(), exec(), and similar dangerous patterns"
+    rules:
+      - type: "regex"
+        id: "eval_function"
+        pattern: "\\beval\\s*\\("
+        message: "eval() usage detected - potential code injection vulnerability"
+        recommendation: "Use json.loads() for JSON parsing or ast.literal_eval()"
+      
+      - type: "regex"
+        id: "exec_function"
+        pattern: "\\bexec\\s*\\("
+        message: "exec() usage detected - potential command injection risk"
+      
+      - type: "regex"
+        id: "os_system"
+        pattern: "os\\.system\\s*\\("
+        message: "os.system() detected - use subprocess module instead"
+
+  # ============================================================================
+  # MEDIUM: License Headers
+  # ============================================================================
+  - id: "require_license_header"
+    name: "📄 Require License Header"
+    severity: "medium"
+    enabled: true
+    description: "Ensures source files have license headers"
+    rules:
+      - type: "file_check"
+        id: "license_presence"
+        extensions: [".py", ".js", ".ts"]
+        check: "contains_text"
+        text: "MIT License|Apache License|BSD License|Copyright"
+        message: "Missing license header in source file"
