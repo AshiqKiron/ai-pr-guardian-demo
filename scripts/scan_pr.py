@@ -13,7 +13,7 @@ from pathlib import Path
 try:
     import yaml
 except ImportError:
-    print("❌ PyYAML not installed. Run: pip install pyyaml")
+    print("PyYAML not installed. Run: pip install pyyaml")
     sys.exit(1)
 
 
@@ -33,14 +33,15 @@ class PolicyEngine:
             policies = config.get('policies', [])
             active_policies = [p for p in policies if p.get('enabled', True)]
             
-            print(f"✅ Loaded {len(active_policies)} active policies from {self.policy_file}")
+            # Safe single-line print
+            print("Loaded " + str(len(active_policies)) + " active policies from " + self.policy_file)
             return active_policies
             
         except FileNotFoundError:
-            print(f"❌ Policy file not found: {self.policy_file}")
+            print("Policy file not found: " + self.policy_file)
             sys.exit(1)
         except Exception as e:
-            print(f"❌ Error loading policies: {e}")
+            print("Error loading policies: " + str(e))
             sys.exit(1)
     
     def get_active_policies(self):
@@ -76,7 +77,7 @@ class CodeScanner:
                 violations.append(violation)
                 
         except re.error as e:
-            print(f"⚠️ Regex error in rule {rule.get('id', 'unknown')}: {e}")
+            print("Regex error in rule " + rule.get('id', 'unknown') + ": " + str(e))
         
         return violations
     
@@ -98,7 +99,7 @@ class CodeScanner:
                     'recommendation': rule.get('recommendation', '')
                 })
         except Exception as e:
-            print(f"⚠️ Error reading file {filepath}: {e}")
+            print("Error reading file " + filepath + ": " + str(e))
         
         return violations
     
@@ -110,7 +111,7 @@ class CodeScanner:
             with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
                 content = f.read()
         except Exception as e:
-            print(f"⚠️ Cannot read {filepath}: {e}")
+            print("Cannot read " + filepath + ": " + str(e))
             return []
         
         for policy in policies:
@@ -141,10 +142,10 @@ def get_changed_files_from_pr(pr_number, repo, token):
     """Get list of changed files in a PR using GitHub API"""
     import urllib.request
     
-    url = f"https://api.github.com/repos/{repo}/pulls/{pr_number}/files"
+    url = "https://api.github.com/repos/" + repo + "/pulls/" + str(pr_number) + "/files"
     
     headers = {
-        'Authorization': f'token {token}',
+        'Authorization': 'token ' + token,
         'Accept': 'application/vnd.github.v3+json'
     }
     
@@ -162,36 +163,37 @@ def get_changed_files_from_pr(pr_number, repo, token):
         return filtered_files
         
     except Exception as e:
-        print(f"⚠️ Could not fetch PR files: {e}")
+        print("Could not fetch PR files: " + str(e))
         return []
 
 
-# ✅ FIXED: Added 'repo' parameter to match the workflow call
+# FIXED: Clean parameter names matching workflow call
 def scan_pr(pr_number, repo, policy_file, output_file='scan_results.json'):
     """Main scanning function"""
     
-    print("\n" + "="*60)
-    print("🛡️  AI-PR Guardian - Security Scanner")
-    print("="*60)
-    print(f" PR: #{pr_number}")
-    print(f"📁 Repository: {repo}")
-    print("="*60 + "\n")
+    # SAFE PRINTS: No emojis, no f-strings, no multi-line strings
+    print("\n" + "=" * 60)
+    print("AI-PR Guardian - Security Scanner")
+    print("=" * 60)
+    print("PR: #" + str(pr_number))
+    print("Repository: " + repo)
+    print("=" * 60 + "\n")
     
     engine = PolicyEngine(policy_file)
     policies = engine.get_active_policies()
     
     token = os.environ.get('GITHUB_TOKEN', '')
     
-    print(" Fetching changed files...")
+    print("Fetching changed files...")
     if token:
         changed_files = get_changed_files_from_pr(pr_number, repo, token)
     else:
-        print("💡 Scanning local files (no GITHUB_TOKEN)")
+        print("Scanning local files (no GITHUB_TOKEN)")
         changed_files = []
         for ext in ['*.py', '*.js', '*.ts']:
             changed_files.extend([str(p) for p in Path('.').rglob(ext)])
     
-    print(f"📁 Found {len(changed_files)} files to scan\n")
+    print("Found " + str(len(changed_files)) + " files to scan\n")
     
     scanner = CodeScanner()
     all_violations = []
@@ -202,8 +204,64 @@ def scan_pr(pr_number, repo, policy_file, output_file='scan_results.json'):
             continue
         
         files_scanned += 1
-        print(f"  [{files_scanned}] Scanning: {filename}")
+        print("  [" + str(files_scanned) + "] Scanning: " + filename)
         
         violations = scanner.scan_file(filename, policies)
         if violations:
-            print(f"     
+            # FIXED: Single line safe print
+            print("      Found " + str(len(violations)) + " violation(s)")
+            all_violations.extend(violations)
+    
+    results = {
+        'pr_number': pr_number,
+        'repository': repo,
+        'files_scanned': files_scanned,
+        'violations_found': len(all_violations),
+        'violations': all_violations,
+        'status': 'blocked' if all_violations else 'approved',
+        'policies_checked': len(policies)
+    }
+    
+    with open(output_file, 'w') as f:
+        json.dump(results, f, indent=2)
+    
+    # SAFE PRINTS FOR SUMMARY
+    print("\n" + "=" * 60)
+    print("SCAN SUMMARY")
+    print("=" * 60)
+    print("Files scanned: " + str(files_scanned))
+    
+    if all_violations:
+        print("Violations found: " + str(len(all_violations)))
+    else:
+        print("Violations found: 0")
+        
+    print("Status: " + results['status'].upper())
+    print("=" * 60 + "\n")
+    
+    return results
+
+
+def main():
+    parser = argparse.ArgumentParser(description='AI-PR Guardian Scanner')
+    parser.add_argument('--pr-number', type=int, required=True)
+    parser.add_argument('--repository', type=str, required=True)
+    parser.add_argument('--policies', type=str, default='.ai-guardrails/policies.yaml')
+    parser.add_argument('--output', type=str, default='scan_results.json')
+    
+    args = parser.parse_args()
+    
+    # FIXED: Explicitly pass repo=args.repository
+    results = scan_pr(
+        pr_number=args.pr_number,
+        repo=args.repository,
+        policy_file=args.policies,
+        output_file=args.output
+    )
+    
+    if results['violations_found'] > 0:
+        sys.exit(1)
+
+
+if __name__ == '__main__':
+    main()
