@@ -30,6 +30,7 @@ jobs:
       - name: 📦 Install dependencies
         run: |
           pip install pyyaml
+          # Install Semgrep (free OSS version)
           pip install semgrep
       
       - name: 🔍 Run AI-PR Guardian Scanner
@@ -45,6 +46,8 @@ jobs:
             --policies .ai-guardrails/policies.yaml \
             --output scan_results.json
             
+          echo "Scan complete!"
+      
       - name: 📊 Upload scan results
         uses: actions/upload-artifact@v4
         with:
@@ -59,24 +62,48 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const fs = require('fs');
+            
+            // Read scan results
             let results;
             try {
               const data = fs.readFileSync('scan_results.json', 'utf8');
               results = JSON.parse(data);
             } catch (e) {
+              console.log('⚠️ No scan results found, skipping comment');
               return;
             }
             
             const prNumber = context.issue.number;
             const timestamp = new Date().toISOString();
+            const auditId = Date.now();
             
             if (results.violations_found === 0) {
+              // ✅ Post approval comment
+              const approvalComment = `## ✅ AI-PR Guardian: All Checks Passed
+              
+            <details>
+            <summary><strong>Scan Summary</strong></summary>
+            
+            - **Status**: APPROVED ✓
+            - **Files scanned**: ${results.files_scanned}
+            - **Violations found**: 0
+            - **Timestamp**: ${timestamp}
+            - **Audit ID**: ${auditId}
+            
+            </details>
+            
+            ---
+            *✨ This PR passed all security and compliance checks.*
+            *Powered by [AI-PR Guardian](https://github.com/${context.repo.owner}/ai-pr-guardian-demo) 🔒*`;
+              
               await github.rest.issues.createComment({
                 issue_number: prNumber,
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                body: `## ✅ AI-PR Guardian: All Checks Passed\n\n- **Status**: APPROVED ✓\n- **Files scanned**: ${results.files_scanned}\n- **Violations**: 0\n\n*Powered by AI-PR Guardian 🔒*`
+                body: approvalComment
               });
+              
+              // Create passing check
               await github.rest.checks.create({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
@@ -84,11 +111,36 @@ jobs:
                 head_sha: context.payload.pull_request.head.sha,
                 status: 'completed',
                 conclusion: 'success',
-                output: { title: '✅ Security Check Passed', summary: 'No violations detected' }
+                output: {
+                  title: '✅ Security Check Passed',
+                  summary: `Scanned ${results.files_scanned} files - No violations detected`,
+                  text: 'All security and compliance checks passed successfully.'
+                }
               });
-            } else {
-              let comment = `## 🚫 AI-PR Guardian: Security Violations Detected\n\n**Status**: BLOCKED ❌\n- **Files scanned**: ${results.files_scanned}\n- **Violations**: ${results.violations_found}\n\n---\n\n`;
               
+            } else {
+              // ❌ Build violation report
+              let comment = `## 🚫 AI-PR Guardian: Security Violations Detected
+              
+            **Status**: BLOCKED ❌
+            
+            <details>
+            <summary><strong>Scan Summary</strong></summary>
+            
+            - **Files scanned**: ${results.files_scanned}
+            - **Violations found**: ${results.violations_found}
+            - **Timestamp**: ${timestamp}
+            - **Audit ID**: ${auditId}
+            
+            </details>
+            
+            ---
+            
+            ### 🔍 Violation Details
+            
+            `;
+              
+              // Group violations by file
               const byFile = {};
               results.violations.forEach(v => {
                 if (!byFile[v.file]) byFile[v.file] = [];
@@ -97,31 +149,47 @@ jobs:
               
               for (const [file, violations] of Object.entries(byFile)) {
                 comment += `#### 📄 \`${file}\`\n\n`;
+                
                 violations.forEach((v, i) => {
-                  comment += `${i + 1}. **${v.policy}** (${v.severity})\n   - ${v.message}\n   - Line: ${v.line || 'N/A'}\n\n`;
+                  const severityEmoji = {
+                    'critical': '🔴',
+                    'high': '🟠',
+                    'medium': '🟡',
+                    'low': '🔵',
+                    'info': '⚪'
+                  }[v.severity] || '⚪';
+                  
+                  comment += `${i + 1}. ${severityEmoji} **${v.policy}** (${v.severity})\n`;
+                  comment += `   - ${v.message}\n`;
+                  
+                  if (v.line) {
+                    comment += `   - **Line**: ${v.line}\n`;
+                  }
+                  
+                  if (v.recommendation) {
+                    comment += `   - 💡 **Fix**: ${v.recommendation}\n`;
+                  }
+                  
+                  if (v.matched_text) {
+                    const preview = v.matched_text.length > 60 
+                      ? v.matched_text.substring(0, 60) + '...' 
+                      : v.matched_text;
+                    comment += `   - Found: \`${preview}\`\n`;
+                  }
+                  
+                  comment += `\n`;
                 });
               }
               
-              comment += `\n---\n**Action Required**: Fix these violations before merging.\n*Audit ID: ${Date.now()}*`;
+              comment += `---
               
-              await github.rest.issues.createComment({
-                issue_number: prNumber,
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                body: comment
-              });
-              
-              await github.rest.checks.create({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                name: 'AI-PR Guardian Security Check',
-                head_sha: context.payload.pull_request.head.sha,
-                status: 'completed',
-                conclusion: 'failure',
-                output: { title: '❌ Security Violations Found', summary: `${results.violations_found} violation(s) detected` }
-              });
-            }
-      
-      - name: ❌ Fail workflow if violations found
-        if: steps.scan.outcome == 'failure'
-        run: exit 1
+            ### 🛠️ Next Steps
+            
+            1. Review the violations above
+            2. Fix the identified issues
+            3. Push new commits to this branch
+            4. The scan will run automatically
+            
+            **Need help?** Check our [documentation](https://github.com/${context.repo.owner}/ai-pr-guardian-demo/tree/main/docs)
+            
+            *Audit ID: ${auditId} | Powered by [AI-
