@@ -1,19 +1,28 @@
 version: "1.0"
 description: "AI-PR Guardian Security & Compliance Policies"
 
+# Global settings to prevent scanning irrelevant files
+settings:
+  max_file_size_mb: 10
+  excluded_paths:
+    - "node_modules/"
+    - "vendor/"
+    - "*.min.js"
+    - "*.lock"
+
 policies:
   # ============================================================================
   # CRITICAL: Secret Detection
   # ============================================================================
   - id: "no_secrets"
-    name: "🔑 No Hardcoded Secrets"
+    name: "No Hardcoded Secrets"
     severity: "critical"
     enabled: true
     description: "Prevents API keys, tokens, and passwords in code"
     rules:
       - type: "regex"
         id: "generic_secret"
-        pattern: "(?i)(api[_-]?key|secret[_-]?key|password|passwd|token|auth_token)\s*=\s*['\"][^'\"]{8,}['\"]"
+        pattern: "(?i)(api[_-]?key|secret[_-]?key|password|passwd|token|auth_token)\\s*=\\s*['\"][^'\"]{8,}['\"]"
         message: "Potential hardcoded secret detected. Use environment variables instead."
       
       - type: "regex"
@@ -30,7 +39,7 @@ policies:
   # HIGH: Dangerous Functions
   # ============================================================================
   - id: "no_dangerous_functions"
-    name: "⚠️ No Dangerous Functions"
+    name: "No Dangerous Functions"
     severity: "high"
     enabled: true
     description: "Blocks eval(), exec(), and similar dangerous patterns"
@@ -55,7 +64,7 @@ policies:
   # MEDIUM: License Headers
   # ============================================================================
   - id: "require_license_header"
-    name: "📄 Require License Header"
+    name: "Require License Header"
     severity: "medium"
     enabled: true
     description: "Ensures source files have license headers"
@@ -66,3 +75,4 @@ policies:
         check: "contains_text"
         text: "MIT License|Apache License|BSD License|Copyright"
         message: "Missing license header in source file"
+        recommendation: "Add a license comment at the top of the file"
