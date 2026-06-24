@@ -48,6 +48,7 @@ AI-PR Guardian follows an **Event-Driven Serverless Architecture**. Instead of r
             (Immutable Audit Log)                          (Developer Feedback)
                         ↓                                           ↓
                   [Compliance Export]                      [Branch Protection Gate]
+```
 
 
 ## How This Helps Your Team
