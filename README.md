@@ -2,6 +2,10 @@
 
 AI-PR Guardian is a zero-cost, fully automated security bot that intercepts pull requests on GitHub, evaluates them against configurable security policies, and blocks merges when dangerous patterns are detected. Built entirely on GitHub’s free tier, it enforces a "verify before trust" model for AI-generated or human-written code without requiring external hosting, paid APIs, or complex infrastructure.
 
+### Screenshot one - PR merged from good code branch ![](merged.png)
+### Screenshot two - PR merge blocked from bad code branch ![](blocked.png)
+
+
 ## Core Features
 
 -   **YAML-Based Policy Engine:** Define custom rules for secrets, dangerous functions, license headers, and more in a single human-readable file.
