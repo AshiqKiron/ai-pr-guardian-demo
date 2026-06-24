@@ -1,5 +1,7 @@
-"""MIT License - Copyright 2024"""
-import os
+# VIOLATION 1: Hardcoded Secret
+api_key = "sk-proj-1234567890abcdefghijklmnopqrstuvwxyz"
 
-def get_key():
-    return os.environ.get('API_KEY')
+# VIOLATION 2: Dangerous Function
+def run_code():
+    user_input = input("Enter code: ")
+    eval(user_input) 
